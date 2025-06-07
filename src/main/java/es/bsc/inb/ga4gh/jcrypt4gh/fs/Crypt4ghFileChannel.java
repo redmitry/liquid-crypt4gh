@@ -684,14 +684,14 @@ public class Crypt4ghFileChannel extends FileChannel {
             final long vpos = position & 0xFFFFFFFFFFFF0000L;
             final long vsiz = (size >> 16) * 65536 + 65536;
 
-            buffer = ByteBuffer.allocateDirect((int)vsiz);
-            for (long i, pos = vpos; (i = read(buffer, pos)) > 0; pos += i) {}
-            buffer.rewind();
+            final MemorySegment s = Arena.ofAuto().allocate(vsiz)
+                .reinterpret(Arena.ofAuto(), new MemorySegmentCleaner(vpos));
 
-            final MemorySegment s = MemorySegment.ofBuffer(buffer);
-            final MemorySegment s2 = s.reinterpret(Arena.ofAuto(), new MemorySegmentCleaner(vpos));
-            segments.put(vpos, new WeakReference(s2));
-            
+            segments.put(vpos, new WeakReference(s));
+
+            buffer = s.asByteBuffer();
+            for (long i, pos = vpos; (i = read(buffer, pos)) > 0; pos += i) {}
+
             buffer = buffer.slice((int)(position - vpos), (int)size);
         }
         
