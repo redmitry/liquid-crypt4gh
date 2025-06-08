@@ -2,6 +2,12 @@
 
 Liquid Crypt4GH is a Java implementation of the GA4GH File Encryption Standard in a form of pluggable JSR-203 NIO.2 File System.
 
+## Branches:
+
+- TAG 0.0.1   - initial commit
+- master      - latest releases (0.0.1) + changes that don't affect code (e.g. docs)
+- dev         - next version snapshot (0.0.2-SNAPSHOT)
+
 ## Command-line tool usage
 
 The library may be used as a command-line tool providng a simple functionality to encrypt / decrypt files.
