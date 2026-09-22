@@ -20,7 +20,7 @@ limitations under the License.
 
     <groupId>es.bsc.inb.ga4gh</groupId>
     <artifactId>crypt4gh</artifactId>
-    <version>0.0.2</version>
+    <version>0.0.3-SNAPSHOT</version>
     
     <name>liquid-crypt4gh</name>
 
