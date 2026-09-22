@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 ELIXIR ES, Spanish National Bioinformatics Institute (INB)
+ * Copyright (C) 2026 ELIXIR ES, Spanish National Bioinformatics Institute (INB)
  * and Barcelona Supercomputing Center (BSC)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,6 +21,7 @@ import static es.bsc.inb.ga4gh.jcrypt4gh.Crypt4ghConfig.CRYPT4GH_PASSPHRASE_PROP
 import static es.bsc.inb.ga4gh.jcrypt4gh.Crypt4ghConfig.CRYPT4GH_PRIVATE_KEY_FILE_PROPERTY;
 import static es.bsc.inb.ga4gh.jcrypt4gh.Crypt4ghConfig.CRYPT4GH_PUBLIC_KEY_FILE_PROPERTY;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
 import java.net.URI;
@@ -113,14 +114,14 @@ public class Crypt4ghFileChannelTest {
             final Path c4gh_path = Files.createTempFile("crypt4gh.c4gh", ".tmp");
 
             final byte[] unencrypted = Files.readAllBytes(pdf_path);
-            try (FileChannel ch = FileChannel.open(c4gh_path, 
-                    StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.DELETE_ON_CLOSE)) {
+            try (InputStream in = Files.newInputStream(pdf_path, StandardOpenOption.READ);
+                 FileChannel ch = FileChannel.open(c4gh_path, 
+                         StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.DELETE_ON_CLOSE)) {
                 for (int i = 0; i < unencrypted.length; i += 25519) {
                     final ByteBuffer src = ByteBuffer.wrap(unencrypted, i, Math.min(25519, unencrypted.length - i));
                     ch.write(src);
                 }
-                
-                final byte[] decrypted = Files.readAllBytes(c4gh_path);
+                final byte[] decrypted = in.readAllBytes();
                 Assertions.assertArrayEquals(unencrypted, decrypted);
             }
             
@@ -293,7 +294,8 @@ public class Crypt4ghFileChannelTest {
             final Path pdf_path = Paths.get(pdf.toURI());
             final Path c4gh_path = Files.createTempFile("crypt4gh.c4gh", ".tmp");
 
-            try (FileChannel ch = FileChannel.open(c4gh_path, 
+            try (InputStream in = Files.newInputStream(pdf_path, StandardOpenOption.READ);
+                 FileChannel ch = FileChannel.open(c4gh_path, 
                         StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.DELETE_ON_CLOSE)) {
                 final byte[] unencrypted = Files.readAllBytes(pdf_path);
                 final byte[] encrypted = new byte[4096];
@@ -306,7 +308,7 @@ public class Crypt4ghFileChannelTest {
                 
                 ch.force(true); // flush all mapped buffers to the disk
                 
-                final byte[] decrypted = Files.readAllBytes(c4gh_path);
+                final byte[] decrypted = in.readAllBytes();
                 Assertions.assertArrayEquals(unencrypted, decrypted);
             }
         } catch (IOException | URISyntaxException ex) {
