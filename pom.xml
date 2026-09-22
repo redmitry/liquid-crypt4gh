@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-Copyright (C) 2025 ELIXIR ES, Spanish National Bioinformatics Institute (INB)
+Copyright (C) 2026 ELIXIR ES, Spanish National Bioinformatics Institute (INB)
 and Barcelona Supercomputing Center (BSC)
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +20,7 @@ limitations under the License.
 
     <groupId>es.bsc.inb.ga4gh</groupId>
     <artifactId>crypt4gh</artifactId>
-    <version>0.0.1</version>
+    <version>0.0.2</version>
     
     <name>liquid-crypt4gh</name>
 
@@ -34,8 +34,8 @@ limitations under the License.
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>22</maven.compiler.source>
-        <maven.compiler.target>22</maven.compiler.target>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
         
         <blake2b.version>2.0.0</blake2b.version>
     </properties>
@@ -59,7 +59,7 @@ limitations under the License.
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
-                <version>3.4.2</version>
+                <version>3.5.1</version>
                 <executions>
                     <execution>
                         <id>default-jar</id>
@@ -70,7 +70,7 @@ limitations under the License.
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
-                <version>3.5.0</version>
+                <version>3.8.0</version>
                 <configuration>
                     <appendAssemblyId>false</appendAssemblyId>
                     <finalName>liquid-crypt4gh</finalName>

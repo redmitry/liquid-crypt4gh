@@ -5,8 +5,8 @@ Liquid Crypt4GH is a Java implementation of the GA4GH File Encryption Standard i
 ## Branches:
 
 - TAG 0.0.1   - initial commit
-- master      - latest releases (0.0.1) + changes that don't affect code (e.g. docs)
-- dev         - next version snapshot (0.0.2-SNAPSHOT)
+- master      - latest releases (0.0.2) + changes that don't affect code (e.g. docs)
+- dev         - next version snapshot (0.0.3-SNAPSHOT)
 
 ## Command-line tool usage
 

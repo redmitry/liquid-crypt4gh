@@ -98,7 +98,8 @@ public class Crypt4ghFileSystemProvider extends FileSystemProvider {
 
     @Override
     public Path getPath(URI uri) {
-        return new Crypt4ghPath(getFileSystem().proxy.provider().getPath(uri), getFileSystem());
+        return new Crypt4ghPath(Crypt4ghPath.unwrap(
+                getFileSystem().proxy.provider().getPath(uri)), getFileSystem());
     }
 
     @Override

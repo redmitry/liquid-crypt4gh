@@ -64,8 +64,6 @@ import javax.crypto.spec.IvParameterSpec;
 
 public class Crypt4ghFileChannel extends FileChannel {
 
-    private boolean closed;
-    
     private long vsize;
     private long vposition = 0;
     
@@ -147,7 +145,7 @@ public class Crypt4ghFileChannel extends FileChannel {
             return channel.read(dst);
         }
 
-        if (closed) {
+        if (!isOpen()) {
             throw new ClosedChannelException();
         }
 
@@ -211,7 +209,7 @@ public class Crypt4ghFileChannel extends FileChannel {
             return channel.read(dsts, offset, length);
         }
 
-        if (closed) {
+        if (!isOpen()) {
             throw new ClosedChannelException();
         }
 
@@ -275,7 +273,7 @@ public class Crypt4ghFileChannel extends FileChannel {
             return channel.write(src);
         }
 
-        if (closed) {
+        if (!isOpen()) {
             throw new ClosedChannelException();
         }
 
@@ -290,7 +288,7 @@ public class Crypt4ghFileChannel extends FileChannel {
             return channel.write(src, position);
         }
         
-        if (closed) {
+        if (!isOpen()) {
             throw new ClosedChannelException();
         }
 
@@ -404,7 +402,7 @@ public class Crypt4ghFileChannel extends FileChannel {
             return channel.write(srcs, offset, length);
         }
 
-        if (closed) {
+        if (!isOpen()) {
             throw new ClosedChannelException();
         }
 
@@ -423,7 +421,7 @@ public class Crypt4ghFileChannel extends FileChannel {
             return channel.position();
         }
 
-        if (closed) {
+        if (!isOpen()) {
             throw new ClosedChannelException();
         }
 
@@ -435,7 +433,7 @@ public class Crypt4ghFileChannel extends FileChannel {
         sposition = 0;
         if (header == null) {
             channel.position(newPosition);
-        } else if (closed) {
+        } else if (!isOpen()) {
             throw new ClosedChannelException();
         } else {
             vposition = newPosition;
@@ -449,7 +447,7 @@ public class Crypt4ghFileChannel extends FileChannel {
             return channel.size();
         }
 
-        if (closed) {
+        if (!isOpen()) {
             throw new ClosedChannelException();
         }
 
@@ -462,7 +460,7 @@ public class Crypt4ghFileChannel extends FileChannel {
             return channel.truncate(size);
         }
         
-        if (closed) {
+        if (!isOpen()) {
             throw new ClosedChannelException();
         }
 
@@ -515,7 +513,7 @@ public class Crypt4ghFileChannel extends FileChannel {
     @Override
     public synchronized void force(boolean metaData) throws IOException {
         if (header != null) {
-            if (closed) {
+            if (!isOpen()) {
                 throw new ClosedChannelException();
             }
 
@@ -541,7 +539,7 @@ public class Crypt4ghFileChannel extends FileChannel {
             return channel.transferTo(position, count, target);
         }
         
-        if (closed) {
+        if (!isOpen()) {
             throw new ClosedChannelException();
         }
 
@@ -567,7 +565,7 @@ public class Crypt4ghFileChannel extends FileChannel {
             return channel.transferFrom(src, position, count);
         }
         
-        if (closed) {
+        if (!isOpen()) {
             throw new ClosedChannelException();
         }
 
@@ -591,7 +589,7 @@ public class Crypt4ghFileChannel extends FileChannel {
             return channel.map(mode, position, size);
         }
 
-        if (closed) {
+        if (!isOpen()) {
             throw new ClosedChannelException();
         }
 
@@ -608,7 +606,7 @@ public class Crypt4ghFileChannel extends FileChannel {
         
         extend(position + size); // ensure file size
         
-        Entry<Long, FileLock> lock_entry = locks.floorEntry(position + size);
+        final Entry<Long, FileLock> lock_entry = locks.floorEntry(position + size);
         if (lock_entry != null && position <= lock_entry.getKey()) {
                 throw new IOException(String.format("overlapping mapped buffer request %s - %s " +
                         "with already allocated segment: %s - %s", 
@@ -686,13 +684,13 @@ public class Crypt4ghFileChannel extends FileChannel {
             final long vpos = position & 0xFFFFFFFFFFFF0000L;
             final long vsiz = (size >> 16) * 65536 + 65536;
 
-            buffer = ByteBuffer.allocateDirect((int)vsiz);
-            for (long i, pos = vpos; (i = read(buffer, pos)) > 0; pos += i) {}
-            buffer.rewind();
+            final MemorySegment s = Arena.ofAuto().allocate(vsiz)
+                .reinterpret(Arena.ofAuto(), new MemorySegmentCleaner(vpos));
 
-            final MemorySegment s = MemorySegment.ofBuffer(buffer);
-            final MemorySegment s2 = s.reinterpret(Arena.ofAuto(), new MemorySegmentCleaner(vpos));
-            segments.put(vpos, new WeakReference(s2));
+            segments.put(vpos, new WeakReference(s));
+
+            buffer = s.asByteBuffer();
+            for (long i, pos = vpos; (i = read(buffer, pos)) > 0; pos += i) {}
 
             buffer = buffer.slice((int)(position - vpos), (int)size);
         }
@@ -711,7 +709,7 @@ public class Crypt4ghFileChannel extends FileChannel {
             return channel.lock(position, size, shared);
         }
         
-        if (closed) {
+        if (!isOpen()) {
             throw new ClosedChannelException();
         }
 
@@ -730,7 +728,7 @@ public class Crypt4ghFileChannel extends FileChannel {
             return channel.tryLock(position, size, shared);
         }
         
-        if (closed) {
+        if (!isOpen()) {
             throw new ClosedChannelException();
         }
 
@@ -746,9 +744,6 @@ public class Crypt4ghFileChannel extends FileChannel {
     protected void implCloseChannel() throws IOException {
         if (header == null || segments.isEmpty()) {
             channel.close();
-        } else {
-            // do not close the file if there are still some mapped segments.
-            closed = true;
         }
     }
 
@@ -792,7 +787,7 @@ public class Crypt4ghFileChannel extends FileChannel {
                     lock.release();
                 } catch (IOException ex) {}
             }
-
+            
             final ByteBuffer buf = segment.asSlice(start - position, end - start).asByteBuffer();
 
             Logger.getLogger(Crypt4ghFileChannel.class.getName()).log(
@@ -820,7 +815,7 @@ public class Crypt4ghFileChannel extends FileChannel {
             flush(segment, position);
             segments.remove(position);
             
-            if (closed && segments.isEmpty()) {
+            if (!isOpen() && segments.isEmpty()) {
                 try {
                     channel.close();
                 } catch (IOException ex) {}
