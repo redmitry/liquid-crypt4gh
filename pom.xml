@@ -20,9 +20,25 @@ limitations under the License.
 
     <groupId>es.bsc.inb.ga4gh</groupId>
     <artifactId>crypt4gh</artifactId>
-    <version>0.0.3-SNAPSHOT</version>
-    
+    <version>0.1.0-SNAPSHOT</version>
+
     <name>liquid-crypt4gh</name>
+
+    <description>
+        Crypt4GH v2 development...
+    </description>
+
+    <organization>
+        <name>Barcelona Supercomputing Center</name>
+        <url>https://www.bsc.es/</url>
+    </organization>
+
+    <licenses>
+      <license>
+        <name>Apache-2.0</name>
+        <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      </license>
+    </licenses>
 
     <developers>
         <developer>
@@ -36,7 +52,7 @@ limitations under the License.
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>25</maven.compiler.source>
         <maven.compiler.target>25</maven.compiler.target>
-        
+
         <blake2b.version>2.0.0</blake2b.version>
     </properties>
 
@@ -76,7 +92,7 @@ limitations under the License.
                     <finalName>liquid-crypt4gh</finalName>
                     <descriptorRefs>
                         <descriptorRef>jar-with-dependencies</descriptorRef>
-                    </descriptorRefs>                  
+                    </descriptorRefs>
                     <archive>
                         <manifest>
                             <mainClass>es.bsc.inb.ga4gh.jcrypt4gh.Crypt4gh</mainClass>

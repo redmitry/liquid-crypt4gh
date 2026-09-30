@@ -27,6 +27,8 @@ import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.security.GeneralSecurityException;
+import java.security.PublicKey;
+import java.security.interfaces.XECPublicKey;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -39,41 +41,53 @@ public class Crypt4ghHeader implements Crypt4ghHeaherElement {
 
     // The magic number is the ASCII representation of the string “crypt4gh”.
     private static final byte[] MAGIC = {'c', 'r', 'y', 'p', 't', '4', 'g', 'h'};
-    // The version number is stored as a four-byte little-endian unsigned integer.
-    private static final byte[] VERSION = {1, 0, 0, 0}; 
+    
+    // In the Crypt4GH v2 the writer's public key is stored in the header.
+    private final PublicKey wpk;
     
     public final Crypt4ghKeys keys;
     
     private Crypt4ghHeaderPacket editListPacket;
     private final List<Crypt4ghHeaderPacket> dataPackets;
+
+    public Crypt4ghHeader(Crypt4ghKeys keys)
+            throws GeneralSecurityException, Crypt4ghException {
+        this(keys, null);
+    }
     
     /**
      * Create Crypt4GH Header with given encryption keys.
      * 
-     * @param keys a keys set (secret key and target public key
+     *
+     * @param keys a keys set (secret key and target public key)
+     * @param wpk
      * 
      * @throws GeneralSecurityException
      * @throws Crypt4ghException 
      */
-    public Crypt4ghHeader(Crypt4ghKeys keys)
+    public Crypt4ghHeader(Crypt4ghKeys keys, PublicKey wpk)
             throws GeneralSecurityException, Crypt4ghException {
-        this(keys, new ArrayList(), null);
+        this(keys, wpk, new ArrayList(), null);
         
-        dataPackets.add(new Crypt4ghX25519HeaderPacket(
-                this.keys.SK, this.keys.PK, this.keys.RPK));
+        final Crypt4ghHeaderPacket packet = wpk == null 
+                ? new Crypt4ghX25519HeaderPacketV1(this.keys.SK, this.keys.PK, this.keys.RPK)
+                : new Crypt4ghX25519HeaderPacketV2(this.keys.SK, this.keys.PK, this.keys.RPK);
+        
+        dataPackets.add(packet);
     }
 
-    private Crypt4ghHeader(Crypt4ghKeys keys, List<Crypt4ghHeaderPacket> dataPackets, 
-            Crypt4ghHeaderPacket editListPacket) 
+    private Crypt4ghHeader(Crypt4ghKeys keys, PublicKey wpk,
+            List<Crypt4ghHeaderPacket> dataPackets, Crypt4ghHeaderPacket editListPacket) 
             throws Crypt4ghException, GeneralSecurityException {
         
+        this.wpk = wpk;
         this.keys = keys;
         this.dataPackets = dataPackets;
         this.editListPacket = editListPacket;
     }
-        
+    
     public int size() {
-        int size = MAGIC.length + VERSION.length + 4;
+        int size = MAGIC.length + Integer.BYTES + Integer.BYTES;
         for (Crypt4ghHeaderPacket packet : dataPackets) {
             size += packet.size(); 
         }
@@ -100,7 +114,7 @@ public class Crypt4ghHeader implements Crypt4ghHeaherElement {
     public List<Crypt4ghHeaderPacket> getDataPackets() {
         return dataPackets;
     }
-    
+
     /**
      * Find data encryption key for the target public key.
      * 
@@ -116,13 +130,21 @@ public class Crypt4ghHeader implements Crypt4ghHeaherElement {
         return null;
     }
      
-    public void addDataHeaderPacket(Crypt4ghX25519HeaderPacket dp) {
+    public void addDataHeaderPacket(Crypt4ghX25519HeaderPacketV1 dp) {
         dataPackets.add(dp);
     }
 
     public void write(WritableByteChannel ch) throws IOException {
         Crypt4ghHeaherElement.write(ch, ByteBuffer.wrap(MAGIC));
-        Crypt4ghHeaherElement.write(ch, ByteBuffer.wrap(VERSION));
+        
+        if (wpk instanceof XECPublicKey x25519) {
+            Crypt4ghHeaherElement.writeUnsignedInt(ch, Crypt4ghVersion.VERSION_2.VERSION);
+            Crypt4ghHeaherElement.writeUnsignedInt(ch, Crypt4ghHeaderEncryptionMethod.X25519_CHACHA20_IETF_POLY1305.CODE);
+            final byte[] key = Crypt4ghPublicKey.getKey(x25519);
+            Crypt4ghHeaherElement.write(ch, ByteBuffer.wrap(key));
+        } else {
+            Crypt4ghHeaherElement.writeUnsignedInt(ch, Crypt4ghVersion.VERSION_1.VERSION);
+        }
         
         final int packet_count = dataPackets.size() + (editListPacket == null ? 0 : 1);
         Crypt4ghHeaherElement.writeUnsignedInt(ch, packet_count);
@@ -130,7 +152,7 @@ public class Crypt4ghHeader implements Crypt4ghHeaherElement {
         for (Crypt4ghHeaderPacket packet : dataPackets) {
             packet.write(ch);
         }
-        
+
         if (editListPacket != null) {
             editListPacket.write(ch);
         }
@@ -142,18 +164,21 @@ public class Crypt4ghHeader implements Crypt4ghHeaherElement {
         if (!Arrays.equals(MAGIC, Crypt4ghHeaherElement.readNBytes(ch, MAGIC.length))) {
             return null; // invalid 'crypt4gh' header
         }
-        if (!Arrays.equals(VERSION, Crypt4ghHeaherElement.readNBytes(ch, VERSION.length))) {
-            return null; // invalid crypt4gh header version
+        
+        XECPublicKey wpk = null;
+        if (Crypt4ghVersion.VERSION_2 == Crypt4ghVersion.read(ch)) {
+            
+            wpk = Crypt4ghHeaderPacket.readPublicWriterKey(ch);
         }
-
+        
         keys = keys != null ? keys : Crypt4ghKeys.instance();
-                
+        
         Crypt4ghHeaderPacket editListPacket = null;
         final ArrayList dataPackets = new ArrayList();
         
         final int packet_count = Crypt4ghHeaherElement.readUnsignedInt(ch);
         for (int i = 0; i < packet_count; i++) {
-            final Crypt4ghHeaderPacket packet = Crypt4ghHeaderPacket.create(ch, keys.SK);
+            final Crypt4ghHeaderPacket packet = Crypt4ghHeaderPacket.create(ch, keys.SK, wpk);
             if (packet != null) {
                 if (packet.packet.type == DATA_ENCRYPTION_KEY) {
                     dataPackets.add(packet);
@@ -168,8 +193,8 @@ public class Crypt4ghHeader implements Crypt4ghHeaherElement {
         if (dataPackets.isEmpty()) {
             throw new IOException("no matching key found in header");
         }
-        
-        return new Crypt4ghHeader(keys, dataPackets, editListPacket);
+
+        return new Crypt4ghHeader(keys, wpk, dataPackets, editListPacket);
     }
 
     public static long getFileSize(Crypt4ghPath path) 

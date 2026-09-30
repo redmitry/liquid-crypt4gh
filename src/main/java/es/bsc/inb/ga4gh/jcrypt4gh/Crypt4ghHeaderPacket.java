@@ -17,13 +17,25 @@
 
 package es.bsc.inb.ga4gh.jcrypt4gh;
 
-import static es.bsc.inb.ga4gh.jcrypt4gh.Crypt4ghHeaderEncryptionMethod.X25519_CHACHA20_IETF_POLY1305;
+import static es.bsc.inb.ga4gh.jcrypt4gh.Crypt4ghX25519HeaderPacket.KEY_SIZE;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
+import java.security.GeneralSecurityException;
+import java.security.KeyFactory;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.interfaces.XECPrivateKey;
+import java.security.interfaces.XECPublicKey;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.NamedParameterSpec;
+import static java.security.spec.NamedParameterSpec.X25519;
+import java.security.spec.XECPublicKeySpec;
+import java.util.HexFormat;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * @author Dmitry Repchevsky
@@ -55,19 +67,36 @@ public abstract class Crypt4ghHeaderPacket<T extends PrivateKey, V extends Publi
     
     public abstract void write(WritableByteChannel ch) throws IOException;
     
-    public static Crypt4ghHeaderPacket create(ReadableByteChannel ch,
-            PrivateKey sk) throws IOException {
+    public static XECPublicKey readPublicWriterKey(ReadableByteChannel ch) 
+            throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
         
-        final int length = Crypt4ghHeaherElement.readUnsignedInt(ch);
-        final int method = Crypt4ghHeaherElement.readUnsignedInt(ch);
-        if (method != X25519_CHACHA20_IETF_POLY1305.CODE) {
+        final Crypt4ghHeaderEncryptionMethod encryption = Crypt4ghHeaderEncryptionMethod.read(ch);
+        if (encryption == null) {
             throw new IOException("unsupported crypt4gh encryption method");
         }
         
-        final byte[] data = Crypt4ghHeaherElement.readNBytes(ch, length - 8);
+        final byte[] key = Crypt4ghHeaherElement.readNBytes(ch, KEY_SIZE);
+
+        final KeyFactory keyFactory = KeyFactory.getInstance(X25519.getName());
+        for (int i = 0, n = key.length; i < n; key[i] ^= key[--n], key[n] ^= key[i], key[i++] ^= key[n]) {}
+
+        Logger.getLogger(Crypt4ghX25519HeaderPacketV1.class.getName())
+                .log(Level.FINE, "Crypt4gh peer writerPublicKey: {0}" , HexFormat.of().formatHex(key).toUpperCase());
+
+        return (XECPublicKey)keyFactory.generatePublic(
+                new XECPublicKeySpec(new NamedParameterSpec(X25519.getName()), new BigInteger(key)));
+    }
+    
+    public static Crypt4ghHeaderPacket create(ReadableByteChannel ch,
+            PrivateKey sk, XECPublicKey kpw) 
+            throws IOException {
         
         if (sk instanceof XECPrivateKey x25519) {
-            return Crypt4ghX25519HeaderPacket.create(data, x25519);
+            try {
+                return Crypt4ghX25519HeaderPacket.create(ch, x25519, kpw);
+            } catch (GeneralSecurityException ex) {
+                return null;
+            }
         }
         
         throw new IOException("unsupported private key type: " + sk.getFormat());

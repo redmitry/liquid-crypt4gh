@@ -25,7 +25,8 @@ import java.nio.channels.ReadableByteChannel;
  */
 
 public enum Crypt4ghHeaderEncryptionMethod {
-    X25519_CHACHA20_IETF_POLY1305(0, 12, 32, 16);
+    X25519_CHACHA20_IETF_POLY1305(0, 12, 32, 16),
+    X25519_CHACHA20_IETF_POLY1305_WITH_AD(0, 12, 32, 16);
     
     public final int CODE;
     public final int KEY_SIZE;
@@ -39,10 +40,16 @@ public enum Crypt4ghHeaderEncryptionMethod {
         MAC_SIZE = szMac;
     }
 
-    public static Crypt4ghHeaderEncryptionMethod read(ReadableByteChannel ch) throws IOException {
-        switch((int)Crypt4ghHeaherElement.readUnsignedInt(ch)) {
+    public static Crypt4ghHeaderEncryptionMethod read(ReadableByteChannel ch) 
+            throws IOException {
+        return getCrypt4ghHeaderEncryptionMethod(Crypt4ghHeaherElement.readUnsignedInt(ch));
+    }
+    
+    public static Crypt4ghHeaderEncryptionMethod getCrypt4ghHeaderEncryptionMethod(int version) {
+        switch (version) {
             case 0: return X25519_CHACHA20_IETF_POLY1305;
+            case 1: return X25519_CHACHA20_IETF_POLY1305_WITH_AD;
         }
-        throw new IOException("unsupported crypt4gh encryption method");
+        return null;
     }
 }
