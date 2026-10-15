@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 ELIXIR ES, Spanish National Bioinformatics Institute (INB)
+ * Copyright (C) 2026 ELIXIR ES, Spanish National Bioinformatics Institute (INB)
  * and Barcelona Supercomputing Center (BSC)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -398,10 +398,11 @@ examples:
     private static void encode(String file, String sk, String pk, String password, String output) 
             throws Crypt4ghException, GeneralSecurityException, IOException {
         
+        final Crypt4ghKeys keys;
+        output = output == null ? file.concat(".c4gh") : output;
+        
         final Key secretKey = Crypt4ghKeys.loadKey(sk, password);
         if (secretKey instanceof EdECPrivateKey sk25519) {
-            output = output == null ? file.concat(".c4gh") : output;
-            final Crypt4ghKeys keys;
             if (pk == null) {
                 keys = new Crypt4ghKeys(sk25519);
             } else if (Crypt4ghKeys.loadKey(pk, password) instanceof EdECPublicKey pk25519) {
@@ -409,34 +410,48 @@ examples:
             } else {
                 throw new Crypt4ghException("error: unknown public key format.");
             }
-            try (OutputStream out = Channels.newOutputStream(
-                    new Crypt4ghFileChannel(keys, Paths.get(output), 
-                        Set.of(StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE)))) {
-                Files.copy(Paths.get(file), out);
+        } else if (secretKey instanceof XECPrivateKey sk25519) {
+            if (pk == null) {
+                keys = new Crypt4ghKeys(sk25519);
+            } else if (Crypt4ghKeys.loadKey(pk, password) instanceof XECPublicKey pk25519) {
+                keys = new Crypt4ghKeys(sk25519, pk25519);
+            } else {
+                throw new Crypt4ghException("error: unknown public key format.");
             }
         } else {
             throw new Crypt4ghException("error: unknown private key format.");
         }
+
+        try (OutputStream out = Channels.newOutputStream(
+                new Crypt4ghFileChannel(keys, Paths.get(output), 
+                    Set.of(StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE)))) {
+            Files.copy(Paths.get(file), out);
+        }
+
     }
 
     private static void decode(String file, String sk, String password, String output)
             throws Crypt4ghException, GeneralSecurityException, IOException {
         
+        final Crypt4ghKeys keys;
+        if (output == null) {
+            output = file.endsWith(".c4gh") ? file.substring(0, file.length() - 5) : file + ".decrypted";
+        }
+
         final Key secretKey = Crypt4ghKeys.loadKey(sk, password);
         if (secretKey instanceof EdECPrivateKey sk25519) {
-            if (output == null) {
-                output = file.endsWith(".c4gh") ? file.substring(0, file.length() - 5) : file + ".decoded";
-            }
-            output = output == null ? file.concat(".p8") : output;
-            final Crypt4ghKeys keys = new Crypt4ghKeys(sk25519);
-            try (InputStream out = Channels.newInputStream(
-                    new Crypt4ghFileChannel(keys, Paths.get(file), 
-                        Set.of(StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE)))) {
-                Files.copy(out, Paths.get(output), StandardCopyOption.REPLACE_EXISTING);
-            }
+            keys = new Crypt4ghKeys(sk25519);
+        } else if (secretKey instanceof XECPrivateKey sk25519) {
+            keys = new Crypt4ghKeys(sk25519);
         } else {
             throw new Crypt4ghException("error: unknown private key format.");
-        }        
+        }
+        
+        try (InputStream out = Channels.newInputStream(
+                new Crypt4ghFileChannel(keys, Paths.get(file), 
+                    Set.of(StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE)))) {
+            Files.copy(out, Paths.get(output), StandardCopyOption.REPLACE_EXISTING);
+        }
     }
 
     private static String getParameter(Map<String, List<String>> params,
