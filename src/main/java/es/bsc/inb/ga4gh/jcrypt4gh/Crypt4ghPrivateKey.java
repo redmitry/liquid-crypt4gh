@@ -138,7 +138,7 @@ public class Crypt4ghPrivateKey implements XECPrivateKey {
     
     @Override
     public NamedParameterSpec getParams() {
-        return null; // TODO
+        return NamedParameterSpec.X25519;
     }
     
     @Override
