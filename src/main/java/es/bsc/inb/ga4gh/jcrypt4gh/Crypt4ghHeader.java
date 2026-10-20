@@ -88,6 +88,9 @@ public class Crypt4ghHeader implements Crypt4ghHeaherElement {
     
     public int size() {
         int size = MAGIC.length + Integer.BYTES + Integer.BYTES;
+        if (wpk != null) {
+            size += Integer.BYTES + Crypt4ghHeaderEncryptionMethod.X25519_CHACHA20_IETF_POLY1305_WITH_AD.KEY_SIZE;
+        }
         for (Crypt4ghHeaderPacket packet : dataPackets) {
             size += packet.size(); 
         }
@@ -167,7 +170,6 @@ public class Crypt4ghHeader implements Crypt4ghHeaherElement {
         
         XECPublicKey wpk = null;
         if (Crypt4ghVersion.VERSION_2 == Crypt4ghVersion.read(ch)) {
-            
             wpk = Crypt4ghHeaderPacket.readPublicWriterKey(ch);
         }
         

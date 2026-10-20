@@ -19,6 +19,7 @@ package es.bsc.inb.ga4gh.jcrypt4gh;
 
 import static es.bsc.inb.ga4gh.jcrypt4gh.Crypt4ghDataPacketType.DATA_ENCRYPTION_KEY;
 import static es.bsc.inb.ga4gh.jcrypt4gh.Crypt4ghHeaderEncryptionMethod.X25519_CHACHA20_IETF_POLY1305;
+import static es.bsc.inb.ga4gh.jcrypt4gh.Crypt4ghHeaderEncryptionMethod.X25519_CHACHA20_IETF_POLY1305_WITH_AD;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -34,28 +35,42 @@ import javax.crypto.spec.SecretKeySpec;
 
 public class Crypt4ghDataEncryptionKey extends Crypt4ghEncryptedPacketData {
 
+    public final Crypt4ghHeaderEncryptionMethod method;
     public final SecretKey secretKey;
-    
+    public final long initial_sequence_number;
+
     public Crypt4ghDataEncryptionKey() throws GeneralSecurityException {
+        this(X25519_CHACHA20_IETF_POLY1305);
+    }
+    
+    public Crypt4ghDataEncryptionKey(Crypt4ghHeaderEncryptionMethod method) throws GeneralSecurityException {
         super(DATA_ENCRYPTION_KEY);
+        
+        this.method = method;
         
         final byte[] key = new byte[32];
         new SecureRandom().nextBytes(key);
         
         secretKey = new SecretKeySpec(key, "ChaCha20");
-        
+        initial_sequence_number = 0;
     }
 
     public Crypt4ghDataEncryptionKey(ReadableByteChannel ch) 
             throws IOException {
         super(DATA_ENCRYPTION_KEY);
         
-        final int method = Crypt4ghHeaherElement.readUnsignedInt(ch);
-        if (X25519_CHACHA20_IETF_POLY1305.CODE != method) {
-            throw new IOException("invalid encryption method");
-        }
-        final byte[] key = Crypt4ghHeaherElement.readNBytes(ch, 32);
+        method = Crypt4ghHeaderEncryptionMethod.read(ch);
+
+        final byte[] key = Crypt4ghHeaherElement.readNBytes(ch, method.KEY_SIZE);
         secretKey = new SecretKeySpec(key, "ChaCha20");
+        
+        if (method == X25519_CHACHA20_IETF_POLY1305) {
+            initial_sequence_number = 0;
+        } else {
+            final ByteBuffer b = ByteBuffer.allocate(Long.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+            ch.read(b);
+            initial_sequence_number = b.getLong(0);
+        }
     }
     
     /**
@@ -66,7 +81,11 @@ public class Crypt4ghDataEncryptionKey extends Crypt4ghEncryptedPacketData {
      */
     @Override
     public int size() {
-        return 4 + 4 + secretKey.getEncoded().length; // must be 40 bytes
+        int size = Integer.BYTES + Integer.BYTES + secretKey.getEncoded().length;
+        if (method == X25519_CHACHA20_IETF_POLY1305_WITH_AD) {
+            size += Long.BYTES;
+        }
+        return size;
     }
     
     @Override
@@ -74,7 +93,7 @@ public class Crypt4ghDataEncryptionKey extends Crypt4ghEncryptedPacketData {
         final byte[] payload = new byte[size()];
         ByteBuffer.wrap(payload).order(ByteOrder.LITTLE_ENDIAN)
                 .putInt(DATA_ENCRYPTION_KEY.TYPE)
-                .putInt(X25519_CHACHA20_IETF_POLY1305.CODE)
+                .putInt(method.CODE)
                 .put(secretKey.getEncoded());
         return payload;
         

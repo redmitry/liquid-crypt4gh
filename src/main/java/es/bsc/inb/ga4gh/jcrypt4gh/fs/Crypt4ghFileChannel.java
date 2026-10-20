@@ -20,6 +20,7 @@ package es.bsc.inb.ga4gh.jcrypt4gh.fs;
 import es.bsc.inb.ga4gh.jcrypt4gh.Crypt4ghDataEncryptionKey;
 import es.bsc.inb.ga4gh.jcrypt4gh.Crypt4ghException;
 import es.bsc.inb.ga4gh.jcrypt4gh.Crypt4ghHeader;
+import static es.bsc.inb.ga4gh.jcrypt4gh.Crypt4ghHeaderEncryptionMethod.X25519_CHACHA20_IETF_POLY1305_WITH_AD;
 import es.bsc.inb.ga4gh.jcrypt4gh.Crypt4ghKeys;
 import es.bsc.inb.ga4gh.jcrypt4gh.security.Crypt4ghSecurityProvider;
 import java.io.IOException;
@@ -27,6 +28,7 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
@@ -250,6 +252,12 @@ public class Crypt4ghFileChannel extends FileChannel {
                 try {
                     final Cipher cipher = Cipher.getInstance("ChaCha20-Poly1305");
                     cipher.init(Cipher.DECRYPT_MODE, packet.secretKey, new IvParameterSpec(nonce));
+                    if (packet.method == X25519_CHACHA20_IETF_POLY1305_WITH_AD) {
+                        long ad = packet.initial_sequence_number + position / 65536 + 1; //position / 65536; // Long.remainderUnsigned(position / 65536, Long.MIN_VALUE);
+                        byte[] bb = ByteBuffer.allocate(Long.BYTES)
+                                .order(ByteOrder.LITTLE_ENDIAN).putLong(ad).array();
+                        cipher.updateAAD(bb);
+                    }
                     cipher.doFinal(encrypted, 0, size + 16, decrypted);
                 } catch (InvalidKeyException | InvalidAlgorithmParameterException |
                         IllegalBlockSizeException | BadPaddingException | ShortBufferException |

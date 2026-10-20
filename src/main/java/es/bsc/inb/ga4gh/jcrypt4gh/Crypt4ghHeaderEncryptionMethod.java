@@ -25,8 +25,8 @@ import java.nio.channels.ReadableByteChannel;
  */
 
 public enum Crypt4ghHeaderEncryptionMethod {
-    X25519_CHACHA20_IETF_POLY1305(0, 12, 32, 16),
-    X25519_CHACHA20_IETF_POLY1305_WITH_AD(0, 12, 32, 16);
+    X25519_CHACHA20_IETF_POLY1305(0, 32, 12, 16),
+    X25519_CHACHA20_IETF_POLY1305_WITH_AD(0, 32, 12, 16);
     
     public final int CODE;
     public final int KEY_SIZE;
@@ -42,7 +42,12 @@ public enum Crypt4ghHeaderEncryptionMethod {
 
     public static Crypt4ghHeaderEncryptionMethod read(ReadableByteChannel ch) 
             throws IOException {
-        return getCrypt4ghHeaderEncryptionMethod(Crypt4ghHeaherElement.readUnsignedInt(ch));
+        final Crypt4ghHeaderEncryptionMethod method = 
+                getCrypt4ghHeaderEncryptionMethod(Crypt4ghHeaherElement.readUnsignedInt(ch));
+        if (method == null) {
+            throw new IOException("invalid encryption method");
+        }
+        return method;
     }
     
     public static Crypt4ghHeaderEncryptionMethod getCrypt4ghHeaderEncryptionMethod(int version) {
